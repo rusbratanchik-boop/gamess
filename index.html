@@ -1,13 +1,14 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Рулетка госномеров </title>
+    <title>Рулетка госномеров</title>
     <!-- Яндекс SDK -->
     <script src="/sdk.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,700;0,900;1,900&display=swap" rel="stylesheet">
     <style>
+        /* ----- все ваши стили остаются без изменений ----- */
         :root {
             --br-bg: #050608;
             --br-panel: #0b0e14;
@@ -825,7 +826,40 @@
         document.querySelectorAll('.shop-type-btn').forEach(btn=>btn.addEventListener('click',()=>{ let t=parseInt(btn.dataset.type); currentShopType=t; document.querySelectorAll('.shop-type-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderShopItems(t); }));
 
         // ---------- УЛУЧШЕНИЕ ----------
-        function toggleUpgradeScreen(show){ if(show){ document.getElementById('upgrade-panel-screen').style.display='block'; resetCraftState(); renderMyUpgradePlatesDOM(); } else document.getElementById('upgrade-panel-screen').style.display='none'; }
+        // ДОБАВЛЕНА ОТСУТСТВУЮЩАЯ ФУНКЦИЯ renderMyUpgradePlatesDOM()
+        function renderMyUpgradePlatesDOM() {
+            let list = document.getElementById('up-my-available-plates');
+            if (!list) return;
+            list.innerHTML = '';
+            if (itemsStorage.length === 0) {
+                list.innerHTML = '<div style="text-align:center;color:#aaa;">АРХИВ ПУСТ</div>';
+                return;
+            }
+            itemsStorage.forEach((item, idx) => {
+                let div = document.createElement('div');
+                div.className = 'up-item-row';
+                div.id = `my-craft-row-${idx}`;
+                div.onclick = () => selectMyCraftItem(idx);
+                div.innerHTML = `
+                    <div style="width:100%">${drawPlateSVG(item)}</div>
+                    <div style="display:flex; justify-content:space-between; margin-top:5px;">
+                        <span style="color:${item.color}; font-weight:700;">${item.rarityName}</span>
+                        <span style="color:#2ecc71;">${item.worth.toLocaleString()} ₽</span>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function toggleUpgradeScreen(show){ 
+            if(show){ 
+                document.getElementById('upgrade-panel-screen').style.display='block'; 
+                resetCraftState(); 
+                renderMyUpgradePlatesDOM(); 
+            } else { 
+                document.getElementById('upgrade-panel-screen').style.display='none'; 
+            } 
+        }
         function resetCraftState(){ selectedMyCraftIdx=null; selectedTargetCraftIdx=null; document.getElementById('circle-target-preview').innerHTML='ЦЕЛЬ НЕ ВЫБРАНА'; document.getElementById('upgrade-chance-label').innerText='0%'; document.getElementById('risk-action-btn').disabled=true; recalculateCircleSectors(0); }
         function generateUpgradeTargetsGridDOM(){
             let grid=document.getElementById('up-targets-pool-grid'); grid.innerHTML='';
@@ -835,24 +869,28 @@
             upgradeTargetsDatabase.slice(12,30).forEach((item,idx)=>{ grid.appendChild(buildTargetGridElement(item,idx+12)); });
         }
         function buildTargetGridElement(item, globalIdx) {
-    let div = document.createElement('div');
-    div.className = 'up-target-card';
-    div.id = `target-card-${globalIdx}`;
-    div.onclick = () => selectTargetCraftItem(globalIdx);
-    // определяем цвет для полоски (по редкости)
-    let rarityColor = 'var(--rarity-rare)';
-    if (item.type === 'exclusive') rarityColor = 'var(--rarity-exclusive)';
-    else if (item.type === 'elite') rarityColor = 'var(--rarity-elite)';
-    else if (item.type === 'rare') rarityColor = 'var(--rarity-rare)';
-    div.innerHTML = `
-        <div style="width:100%; position:relative;">
-            ${drawPlateSVG({rawLetters: item.rawLetters, region: item.region})}
-            <div style="position: absolute; bottom: 4px; left: 4px; right: 4px; height: 3px; background: ${rarityColor}; border-radius: 0 0 4px 4px;"></div>
-        </div>
-        <div class="target-price-tag">${item.worth.toLocaleString()} ₽</div>
-    `;
-    return div;
-}
+            let div = document.createElement('div');
+            div.className = 'up-target-card';
+            div.id = `target-card-${globalIdx}`;
+            div.onclick = () => selectTargetCraftItem(globalIdx);
+            let rarityColor = 'var(--rarity-rare)';
+            if (item.type === 'exclusive') rarityColor = 'var(--rarity-exclusive)';
+            else if (item.type === 'elite') rarityColor = 'var(--rarity-elite)';
+            else if (item.type === 'rare') rarityColor = 'var(--rarity-rare)';
+            div.innerHTML = `
+                <div style="width:100%; position:relative;">
+                    ${drawPlateSVG({rawLetters: item.rawLetters, region: item.region})}
+                    <div style="position: absolute; bottom: 4px; left: 4px; right: 4px; height: 3px; background: ${rarityColor}; border-radius: 0 0 4px 4px;"></div>
+                </div>
+                <div class="target-price-tag">${item.worth.toLocaleString()} ₽</div>
+            `;
+            return div;
+        }
+        function selectMyCraftItem(idx){ if(craftAnimationActive) return; selectedMyCraftIdx=idx; document.querySelectorAll('.up-item-row').forEach(r=>r.classList.remove('selected')); document.getElementById(`my-craft-row-${idx}`).classList.add('selected'); updateCraftChanceCalculation(); }
+        function selectTargetCraftItem(globalIdx){ if(craftAnimationActive) return; selectedTargetCraftIdx=globalIdx; document.querySelectorAll('.up-target-card').forEach(c=>c.classList.remove('selected')); document.getElementById(`target-card-${globalIdx}`).classList.add('selected'); let td=upgradeTargetsDatabase[globalIdx]; document.getElementById('circle-target-preview').innerHTML=drawPlateSVG({rawLetters:td.rawLetters, region:td.region}); updateCraftChanceCalculation(); }
+        function updateCraftChanceCalculation(){ if(selectedMyCraftIdx===null || selectedTargetCraftIdx===null) return; let myWorth=itemsStorage[selectedMyCraftIdx].worth, targetWorth=upgradeTargetsDatabase[selectedTargetCraftIdx].worth; let chance=85; if(targetWorth>myWorth){ let ratio=targetWorth/myWorth; chance=Math.max(2,Math.min(85,Math.round(85/(ratio*1.5)))); } lastUpgradeChance=chance; document.getElementById('upgrade-chance-label').innerText=chance+'%'; document.getElementById('risk-action-btn').disabled=false; recalculateCircleSectors(chance); }
+        function recalculateCircleSectors(greenChance){ let svg=document.getElementById('wheel-svg'); svg.innerHTML=''; let circ=251.32, greenStroke=(greenChance/100)*circ; let red=document.createElementNS('http://www.w3.org/2000/svg','circle'); red.setAttribute('cx','50'); red.setAttribute('cy','50'); red.setAttribute('r','40'); red.setAttribute('fill','transparent'); red.setAttribute('stroke','#ff111c'); red.setAttribute('stroke-width','13'); svg.appendChild(red); if(greenChance>0){ let green=document.createElementNS('http://www.w3.org/2000/svg','circle'); green.setAttribute('cx','50'); green.setAttribute('cy','50'); green.setAttribute('r','40'); green.setAttribute('fill','transparent'); green.setAttribute('stroke','#2ecc71'); green.setAttribute('stroke-width','13'); green.setAttribute('stroke-dasharray',`${greenStroke} ${circ}`); green.setAttribute('stroke-dashoffset','0'); svg.appendChild(green); } }
+        function executeUpgradeRisk(){ if(selectedMyCraftIdx===null || selectedTargetCraftIdx===null || craftAnimationActive) return; craftAnimationActive=true; document.getElementById('risk-action-btn').disabled=true; let successChance=lastUpgradeChance||1; let isSuccess=getRandNum(1,100)<=successChance; let wheel=document.getElementById('wheel-svg'); let totalRot=6*360; let stopAngle=isSuccess?getRandNum(5,Math.floor((successChance/100)*360)-5):getRandNum(Math.floor((successChance/100)*360)+5,350); wheel.style.transition='transform 4s cubic-bezier(0.15,0.85,0.2,1)'; wheel.style.transform=`rotate(${-90-totalRot-stopAngle}deg)`; setTimeout(()=>{ if(isSuccess){ let td=upgradeTargetsDatabase[selectedTargetCraftIdx]; itemsStorage[selectedMyCraftIdx]={rawLetters:td.rawLetters,region:td.region,worth:td.worth,rarity:td.type==='exclusive'?'exclusive':'elite',rarityName:td.type==='exclusive'?'Эксклюзив':'Элитный',color:td.type==='exclusive'?'var(--rarity-exclusive)':'var(--rarity-elite)'}; showToast('🔥 УСПЕХ! Номер улучшен!'); } else { itemsStorage.splice(selectedMyCraftIdx,1); showToast('❌ НЕУДАЧА! Номер уничтожен.', true); } wheel.style.transition='none'; wheel.style.transform='rotate(-90deg)'; craftAnimationActive=false; resetCraftState(); renderMyUpgradePlatesDOM(); syncInterface(); saveGame(); },4300); }
 
         // ---------- АУКЦИОН (реальный онлайн) ----------
         function connectWebSocket() {
@@ -882,125 +920,95 @@
         }
 
         // ---------- АУКЦИОН (с сортировкой и пагинацией 5x6) ----------
-let currentPage = 1;
-let itemsPerPage = 30; // 5 колонок * 6 рядов
-let currentSort = 'cheap'; // cheap, expensive, time
-
-function renderAuctionTab(tab) {
-    const container = document.getElementById('auction-content');
-    let items = [];
-    
-    if (tab === 'all') {
-        items = auctionLots.filter(l => !l.is_finished && l.end_time > Date.now());
-    } else if (tab === 'my') {
-        items = auctionLots.filter(l => l.owner_id === playerId && !l.is_finished);
-    } else if (tab === 'bets') {
-        items = auctionLots.filter(l => l.current_bidder_id === playerId && !l.is_finished);
-    } else if (tab === 'create') {
-        container.innerHTML = `
-            <div class="create-lot-panel">
-                <h3>Выберите номер из инвентаря</h3>
-                <div class="my-items-for-sale" id="sell-select-list"></div>
-                <div>Установите начальную цену (мин 1000 ₽)</div>
-                <input type="number" id="sell-price" class="price-input" value="10000">
-                <button id="confirm-create-lot" class="shop-buy-btn">Выложить на аукцион</button>
-                <p class="small-text">Лот активен 30 минут.</p>
-            </div>
-        `;
-        const listDiv = document.getElementById('sell-select-list');
-        listDiv.innerHTML = itemsStorage.map((item, idx) => `
-            <div class="selectable-item" data-sell-idx="${idx}" style="border-bottom:3px solid ${item.color}">
-                ${drawPlateSVG(item)}
-                <div>${item.rarityName}<br>${item.worth.toLocaleString()}₽</div>
-            </div>
-        `).join('');
-        document.querySelectorAll('.selectable-item').forEach(el => el.onclick = () => {
-            document.querySelectorAll('.selectable-item').forEach(c=>c.classList.remove('selected'));
-            el.classList.add('selected');
-        });
-        document.getElementById('confirm-create-lot').onclick = () => {
-            const selected = document.querySelector('.selectable-item.selected');
-            if (!selected) { showToast('Выберите номер', true); return; }
-            const idx = parseInt(selected.dataset.sellIdx);
-            const plate = itemsStorage[idx];
-            let price = parseInt(document.getElementById('sell-price').value);
-            if (isNaN(price) || price < 1000) { showToast('Цена должна быть не менее 1000 ₽', true); return; }
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'create_lot', playerId, plate, startPrice: price }));
-                itemsStorage.splice(idx, 1);
-                syncInterface(); saveGame();
-                showToast('Номер выставлен на аукцион!');
-                renderAuctionTab('my');
-            } else showToast('Нет соединения с сервером', true);
-        };
-        attachAuctionEvents();
-        return;
-    }
-    
-    // Сортировка
-    let sorted = [...items];
-    if (currentSort === 'cheap') sorted.sort((a,b) => a.current_price - b.current_price);
-    if (currentSort === 'expensive') sorted.sort((a,b) => b.current_price - a.current_price);
-    if (currentSort === 'time') sorted.sort((a,b) => a.end_time - b.end_time);
-    
-    // Пагинация
-    const totalPages = Math.ceil(sorted.length / itemsPerPage);
-    if (currentPage > totalPages) currentPage = totalPages || 1;
-    const start = (currentPage - 1) * itemsPerPage;
-    const pageItems = sorted.slice(start, start + itemsPerPage);
-    
-    // Рисуем сетку 5x6
-    let gridHtml = '<div class="auction-lots-grid" style="grid-template-columns: repeat(5, 1fr);">';
-    pageItems.forEach(lot => {
-        if (tab === 'all') gridHtml += lotToHtml(lot);
-        else if (tab === 'my') gridHtml += myLotToHtml(lot);
-        else if (tab === 'bets') gridHtml += betLotToHtml(lot);
-    });
-    gridHtml += '</div>';
-    
-    // Кнопки сортировки и пагинации
-    const controls = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-            <div style="display: flex; gap: 10px;">
-                <button id="sort-cheap" class="shop-type-btn" style="background:${currentSort==='cheap'?'var(--br-red)':'#131924'}">💰 Сначала дешёвые</button>
-                <button id="sort-expensive" class="shop-type-btn" style="background:${currentSort==='expensive'?'var(--br-red)':'#131924'}">💎 Сначала дорогие</button>
-                <button id="sort-time" class="shop-type-btn" style="background:${currentSort==='time'?'var(--br-red)':'#131924'}">⏱ По времени</button>
-            </div>
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <button id="prev-page" class="shop-type-btn" ${currentPage===1 ? 'disabled' : ''}>◀</button>
-                <span style="color: #a2b4cc;">Страница ${currentPage} / ${totalPages}</span>
-                <button id="next-page" class="shop-type-btn" ${currentPage===totalPages ? 'disabled' : ''}>▶</button>
-            </div>
-        </div>
-    `;
-    
-    container.innerHTML = controls + gridHtml;
-    
-    // Навешиваем события
-    document.getElementById('sort-cheap')?.addEventListener('click', () => {
-        currentSort = 'cheap';
-        currentPage = 1;
-        renderAuctionTab(tab);
-    });
-    document.getElementById('sort-expensive')?.addEventListener('click', () => {
-        currentSort = 'expensive';
-        currentPage = 1;
-        renderAuctionTab(tab);
-    });
-    document.getElementById('sort-time')?.addEventListener('click', () => {
-        currentSort = 'time';
-        currentPage = 1;
-        renderAuctionTab(tab);
-    });
-    document.getElementById('prev-page')?.addEventListener('click', () => {
-        if (currentPage > 1) { currentPage--; renderAuctionTab(tab); }
-    });
-    document.getElementById('next-page')?.addEventListener('click', () => {
-        if (currentPage < totalPages) { currentPage++; renderAuctionTab(tab); }
-    });
-    
-    attachAuctionEvents();
-}
+        let currentPage = 1;
+        let itemsPerPage = 30;
+        let currentSort = 'cheap';
+        function renderAuctionTab(tab) {
+            const container = document.getElementById('auction-content');
+            let items = [];
+            if (tab === 'all') {
+                items = auctionLots.filter(l => !l.is_finished && l.end_time > Date.now());
+            } else if (tab === 'my') {
+                items = auctionLots.filter(l => l.owner_id === playerId && !l.is_finished);
+            } else if (tab === 'bets') {
+                items = auctionLots.filter(l => l.current_bidder_id === playerId && !l.is_finished);
+            } else if (tab === 'create') {
+                container.innerHTML = `
+                    <div class="create-lot-panel">
+                        <h3>Выберите номер из инвентаря</h3>
+                        <div class="my-items-for-sale" id="sell-select-list"></div>
+                        <div>Установите начальную цену (мин 1000 ₽)</div>
+                        <input type="number" id="sell-price" class="price-input" value="10000">
+                        <button id="confirm-create-lot" class="shop-buy-btn">Выложить на аукцион</button>
+                        <p class="small-text">Лот активен 30 минут.</p>
+                    </div>
+                `;
+                const listDiv = document.getElementById('sell-select-list');
+                listDiv.innerHTML = itemsStorage.map((item, idx) => `
+                    <div class="selectable-item" data-sell-idx="${idx}" style="border-bottom:3px solid ${item.color}">
+                        ${drawPlateSVG(item)}
+                        <div>${item.rarityName}<br>${item.worth.toLocaleString()}₽</div>
+                    </div>
+                `).join('');
+                document.querySelectorAll('.selectable-item').forEach(el => el.onclick = () => {
+                    document.querySelectorAll('.selectable-item').forEach(c=>c.classList.remove('selected'));
+                    el.classList.add('selected');
+                });
+                document.getElementById('confirm-create-lot').onclick = () => {
+                    const selected = document.querySelector('.selectable-item.selected');
+                    if (!selected) { showToast('Выберите номер', true); return; }
+                    const idx = parseInt(selected.dataset.sellIdx);
+                    const plate = itemsStorage[idx];
+                    let price = parseInt(document.getElementById('sell-price').value);
+                    if (isNaN(price) || price < 1000) { showToast('Цена должна быть не менее 1000 ₽', true); return; }
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'create_lot', playerId, plate, startPrice: price }));
+                        itemsStorage.splice(idx, 1);
+                        syncInterface(); saveGame();
+                        showToast('Номер выставлен на аукцион!');
+                        renderAuctionTab('my');
+                    } else showToast('Нет соединения с сервером', true);
+                };
+                attachAuctionEvents();
+                return;
+            }
+            let sorted = [...items];
+            if (currentSort === 'cheap') sorted.sort((a,b) => a.current_price - b.current_price);
+            if (currentSort === 'expensive') sorted.sort((a,b) => b.current_price - a.current_price);
+            if (currentSort === 'time') sorted.sort((a,b) => a.end_time - b.end_time);
+            const totalPages = Math.ceil(sorted.length / itemsPerPage);
+            if (currentPage > totalPages) currentPage = totalPages || 1;
+            const start = (currentPage - 1) * itemsPerPage;
+            const pageItems = sorted.slice(start, start + itemsPerPage);
+            let gridHtml = '<div class="auction-lots-grid" style="grid-template-columns: repeat(5, 1fr);">';
+            pageItems.forEach(lot => {
+                if (tab === 'all') gridHtml += lotToHtml(lot);
+                else if (tab === 'my') gridHtml += myLotToHtml(lot);
+                else if (tab === 'bets') gridHtml += betLotToHtml(lot);
+            });
+            gridHtml += '</div>';
+            const controls = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; gap: 10px;">
+                        <button id="sort-cheap" class="shop-type-btn" style="background:${currentSort==='cheap'?'var(--br-red)':'#131924'}">💰 Сначала дешёвые</button>
+                        <button id="sort-expensive" class="shop-type-btn" style="background:${currentSort==='expensive'?'var(--br-red)':'#131924'}">💎 Сначала дорогие</button>
+                        <button id="sort-time" class="shop-type-btn" style="background:${currentSort==='time'?'var(--br-red)':'#131924'}">⏱ По времени</button>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button id="prev-page" class="shop-type-btn" ${currentPage===1 ? 'disabled' : ''}>◀</button>
+                        <span style="color: #a2b4cc;">Страница ${currentPage} / ${totalPages}</span>
+                        <button id="next-page" class="shop-type-btn" ${currentPage===totalPages ? 'disabled' : ''}>▶</button>
+                    </div>
+                </div>
+            `;
+            container.innerHTML = controls + gridHtml;
+            document.getElementById('sort-cheap')?.addEventListener('click', () => { currentSort = 'cheap'; currentPage = 1; renderAuctionTab(tab); });
+            document.getElementById('sort-expensive')?.addEventListener('click', () => { currentSort = 'expensive'; currentPage = 1; renderAuctionTab(tab); });
+            document.getElementById('sort-time')?.addEventListener('click', () => { currentSort = 'time'; currentPage = 1; renderAuctionTab(tab); });
+            document.getElementById('prev-page')?.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderAuctionTab(tab); } });
+            document.getElementById('next-page')?.addEventListener('click', () => { if (currentPage < totalPages) { currentPage++; renderAuctionTab(tab); } });
+            attachAuctionEvents();
+        }
         function lotToHtml(lot) { let tl = Math.max(0, lot.end_time - Date.now()); let m = Math.floor(tl/60000), s = Math.floor((tl%60000)/1000); return `<div class="lot-card" data-lot-id="${lot.lot_id}" style="border-bottom:4px solid ${lot.plate.color}"><div>${drawPlateSVG(lot.plate)}</div><div class="lot-price">💰 ${lot.current_price.toLocaleString()} ₽</div><div class="lot-time">⏱ ${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}</div><div class="lot-rarity" style="color:${lot.plate.color}">${lot.plate.rarityName}</div><button class="lot-bid-btn">Сделать ставку</button></div>`; }
         function myLotToHtml(lot) { let tl = Math.max(0, lot.end_time - Date.now()); let m = Math.floor(tl/60000), s = Math.floor((tl%60000)/1000); let hasBids = lot.current_bidder_id !== null; return `<div class="lot-card" data-lot-id="${lot.lot_id}" style="border-bottom:4px solid ${lot.plate.color}"><div>${drawPlateSVG(lot.plate)}</div><div class="lot-price">💰 ${lot.current_price.toLocaleString()} ₽</div><div class="lot-time">⏱ ${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}</div><div class="lot-rarity" style="color:${lot.plate.color}">${lot.plate.rarityName}</div><button class="lot-claim-btn" ${hasBids ? 'disabled' : ''}>Забрать обратно</button></div>`; }
         function betLotToHtml(lot) { let tl = Math.max(0, lot.end_time - Date.now()); let m = Math.floor(tl/60000), s = Math.floor((tl%60000)/1000); return `<div class="lot-card" data-lot-id="${lot.lot_id}" style="border-bottom:4px solid ${lot.plate.color}"><div>${drawPlateSVG(lot.plate)}</div><div class="lot-price">💰 ${lot.current_price.toLocaleString()} ₽</div><div class="lot-time">⏱ ${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}</div><div class="lot-rarity" style="color:${lot.plate.color}">${lot.plate.rarityName}</div><button class="lot-bid-btn">Перебить ставку</button></div>`; }
