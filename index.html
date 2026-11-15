@@ -408,44 +408,17 @@
 </nav>
 
 <script>
-  // ===== ТЕМА =====
-  const themeToggle = document.getElementById('themeToggle');
-  const themeIcon = document.getElementById('themeIcon');
-  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  // ============================================================
+  // НОВЫЙ ИСТОЧНИК ДАННЫХ (официальный, от автора quran-json)
+  // ============================================================
+  const API_BASE = 'https://quran-json.risanb.com';
+  
+  // Для арабского текста используем скрипт 'uthmani'
+  const ARABIC_URL = (id) => `${API_BASE}/text/uthmani/chapters/${id}.json`;
+  // Для русского перевода Кулиева
+  const RUSSIAN_URL = (id) => `${API_BASE}/translations/ru-kuliev/chapters/${id}.json`;
 
-  const savedTheme = localStorage.getItem('barakat-theme');
-  if (savedTheme === 'light') {
-    document.body.classList.add('light');
-    themeIcon.textContent = '☀️';
-    themeMeta.setAttribute('content', '#f4f1e8');
-  }
-
-  function toggleTheme() {
-    const isLight = document.body.classList.toggle('light');
-    themeIcon.textContent = isLight ? '☀️' : '🌙';
-    localStorage.setItem('barakat-theme', isLight ? 'light' : 'dark');
-    themeMeta.setAttribute('content', isLight ? '#f4f1e8' : '#0a1a14');
-  }
-  themeToggle.addEventListener('click', toggleTheme);
-  themeToggle.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleTheme(); }
-  });
-
-  // ===== ЭКРАНЫ =====
-  function showScreen(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-    window.scrollTo(0, 0);
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    if (id === 'screen-home') document.querySelector('.nav-item[data-screen="screen-home"]').classList.add('active');
-    if (id === 'screen-quran') document.querySelector('.nav-item[data-screen="screen-quran"]').classList.add('active');
-  }
-
-  document.querySelectorAll('.nav-item[data-screen]').forEach(item => {
-    item.addEventListener('click', () => showScreen(item.dataset.screen));
-  });
-
-  // ===== ЗАХАРДКОЖЕННЫЙ СПИСОК СУР (первые 5) =====
+  // Список сур (захардкожен для отображения)
   const SURAH_META = [
     {id:1, name:"Al-Fatihah", arabic:"الفاتحة", verses:7, meaning:"Открывающая"},
     {id:2, name:"Al-Baqarah", arabic:"البقرة", verses:286, meaning:"Корова"},
@@ -454,12 +427,7 @@
     {id:5, name:"Al-Ma'idah", arabic:"المائدة", verses:120, meaning:"Трапеза"}
   ];
 
-  let allSurahs = [];
-
-  function loadSurahList() {
-    allSurahs = SURAH_META;
-    renderSurahList(allSurahs);
-  }
+  let allSurahs = SURAH_META;
 
   function renderSurahList(list) {
     const container = document.getElementById('surahListContainer');
@@ -479,45 +447,22 @@
     `).join('') + '</div>';
   }
 
-  document.getElementById('surahSearch').addEventListener('input', (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    if (!q) { renderSurahList(allSurahs); return; }
-    const filtered = allSurahs.filter(s =>
-      s.name.toLowerCase().includes(q) ||
-      s.meaning.toLowerCase().includes(q) ||
-      String(s.id) === q ||
-      s.arabic.includes(q)
-    );
-    renderSurahList(filtered);
-  });
-
-  // ===== ЧТЕНИЕ СУРЫ (fawazahmed0/quran-api) =====
-  const API_BASE = 'https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1';
-
   async function openSurah(id) {
     showScreen('screen-reader');
-    const nameEl = document.getElementById('readerName');
-    const meaningEl = document.getElementById('readerMeaning');
-    const arabicEl = document.getElementById('readerArabic');
-    const metaEl = document.getElementById('readerMeta');
-    const content = document.getElementById('readerContent');
-
     const surah = allSurahs.find(s => s.id === id);
-    nameEl.textContent = surah ? surah.name : 'Сура ' + id;
-    meaningEl.textContent = surah ? surah.meaning : '';
-    arabicEl.textContent = surah ? surah.arabic : '';
-    metaEl.textContent = surah ? (surah.verses + ' аятов') : '';
+    document.getElementById('readerName').textContent = surah ? surah.name : 'Сура ' + id;
+    document.getElementById('readerMeaning').textContent = surah ? surah.meaning : '';
+    document.getElementById('readerArabic').textContent = surah ? surah.arabic : '';
+    document.getElementById('readerMeta').textContent = surah ? (surah.verses + ' аятов') : '';
 
+    const content = document.getElementById('readerContent');
     content.innerHTML = '<div class="loader"><div class="spinner"></div>Загрузка аятов...</div>';
 
     try {
-      // Новые URL: арабский текст (Усмани) и русский перевод Кулиева
-      const arUrl = `${API_BASE}/editions/ara-quranuthmanihaf/${id}.json`;
-      const ruUrl = `${API_BASE}/editions/rus-kuliev/${id}.json`;
-
+      // Загружаем арабский и русский текст параллельно
       const [arRes, ruRes] = await Promise.all([
-        fetch(arUrl),
-        fetch(ruUrl)
+        fetch(ARABIC_URL(id)),
+        fetch(RUSSIAN_URL(id))
       ]);
 
       if (!arRes.ok) throw new Error('Arabic HTTP ' + arRes.status);
@@ -526,9 +471,9 @@
       const arData = await arRes.json();
       const ruData = await ruRes.json();
 
-      // Структура fawazahmed0: { chapter: [{ verse: 1, text: "..." }, ...] }
-      const arVerses = arData.chapter || [];
-      const ruVerses = ruData.chapter || [];
+      // Новая структура: { id, verses: [{ id, text }] }
+      const arVerses = arData.verses || [];
+      const ruVerses = ruData.verses || [];
 
       if (!arVerses.length) {
         content.innerHTML = '<div class="error-msg">Не удалось загрузить аяты.</div>';
@@ -536,9 +481,10 @@
       }
 
       content.innerHTML = arVerses.map((v, i) => {
-        const num = v.verse || (i + 1);
+        const num = v.id || (i + 1);
         const arText = v.text || '';
         const ruText = ruVerses[i]?.text || '';
+        
         return `
           <div class="ayah-block">
             <div class="ayah-number">${id}:${num}</div>
@@ -558,8 +504,50 @@
     }
   }
 
+  // ===== ТЕМА =====
+  const themeToggle = document.getElementById('themeToggle');
+  const themeIcon = document.getElementById('themeIcon');
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  const savedTheme = localStorage.getItem('barakat-theme');
+  if (savedTheme === 'light') {
+    document.body.classList.add('light');
+    themeIcon.textContent = '☀️';
+    themeMeta.setAttribute('content', '#f4f1e8');
+  }
+  function toggleTheme() {
+    const isLight = document.body.classList.toggle('light');
+    themeIcon.textContent = isLight ? '☀️' : '🌙';
+    localStorage.setItem('barakat-theme', isLight ? 'light' : 'dark');
+    themeMeta.setAttribute('content', isLight ? '#f4f1e8' : '#0a1a14');
+  }
+  themeToggle.addEventListener('click', toggleTheme);
+
+  // ===== НАВИГАЦИЯ =====
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    window.scrollTo(0, 0);
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    if (id === 'screen-home') document.querySelector('.nav-item[data-screen="screen-home"]').classList.add('active');
+    if (id === 'screen-quran') document.querySelector('.nav-item[data-screen="screen-quran"]').classList.add('active');
+  }
+  document.querySelectorAll('.nav-item[data-screen]').forEach(item => {
+    item.addEventListener('click', () => showScreen(item.dataset.screen));
+  });
+
+  document.getElementById('surahSearch').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    if (!q) { renderSurahList(allSurahs); return; }
+    const filtered = allSurahs.filter(s =>
+      s.name.toLowerCase().includes(q) ||
+      s.meaning.toLowerCase().includes(q) ||
+      String(s.id) === q
+    );
+    renderSurahList(filtered);
+  });
+
   // ===== СТАРТ =====
-  loadSurahList();
+  renderSurahList(allSurahs);
 </script>
 
 </body>
