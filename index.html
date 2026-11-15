@@ -445,69 +445,20 @@
     item.addEventListener('click', () => showScreen(item.dataset.screen));
   });
 
-  // ===== НОВЫЙ ИСТОЧНИК ДАННЫХ (автор пакета) =====
-  const API_BASE = 'https://quran-json.risanb.com';
+  // ===== ЗАХАРДКОЖЕННЫЙ СПИСОК СУР (первые 5) =====
+  const SURAH_META = [
+    {id:1, name:"Al-Fatihah", arabic:"الفاتحة", verses:7, meaning:"Открывающая"},
+    {id:2, name:"Al-Baqarah", arabic:"البقرة", verses:286, meaning:"Корова"},
+    {id:3, name:"Ali 'Imran", arabic:"آل عمران", verses:200, meaning:"Семейство Имрана"},
+    {id:4, name:"An-Nisa", arabic:"النساء", verses:176, meaning:"Женщины"},
+    {id:5, name:"Al-Ma'idah", arabic:"المائدة", verses:120, meaning:"Трапеза"}
+  ];
 
-  function checkFileProtocol() {
-    if (location.protocol === 'file:') {
-      return true;
-    }
-    return false;
-  }
-
-  async function fetchWithFallback(urls) {
-    let lastErr;
-    for (const url of urls) {
-      try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return await res.json();
-      } catch (e) {
-        lastErr = e;
-        console.warn('Источник не сработал:', url, e.message);
-      }
-    }
-    throw lastErr || new Error('Все источники недоступны');
-  }
-
-  // ===== СПИСОК СУР =====
   let allSurahs = [];
 
-  async function loadSurahList() {
-    const container = document.getElementById('surahListContainer');
-
-    if (checkFileProtocol()) {
-      container.innerHTML = `
-        <div class="error-msg">
-          Вы открыли файл напрямую (file://).<br>
-          Браузер блокирует загрузку данных с интернета.<br><br>
-          <small>Чтобы всё работало, откройте файл через локальный сервер или загрузите на хостинг (например, GitHub Pages).</small>
-        </div>`;
-      return;
-    }
-
-    try {
-      const data = await fetchWithFallback([`${API_BASE}/chapters.json`]);
-      const list = Array.isArray(data) ? data : Object.values(data);
-
-      allSurahs = list.map(s => ({
-        id: s.id,
-        name: s.transliteration || s.name || ('Сура ' + s.id),
-        arabic: s.name || '',
-        meaning: s.meaning || '',
-        verses: s.verses_count ?? s.verses?.length ?? '—',
-        type: s.type === 'meccan' ? 'Мекканская' : s.type === 'medinan' ? 'Мединская' : (s.type || '')
-      })).sort((a, b) => a.id - b.id);
-
-      renderSurahList(allSurahs);
-    } catch (err) {
-      console.error(err);
-      container.innerHTML = `
-        <div class="error-msg">
-          Не удалось загрузить список сур.<br>Проверьте интернет.
-          <br><span class="retry-btn" onclick="loadSurahList()">Повторить</span>
-        </div>`;
-    }
+  function loadSurahList() {
+    allSurahs = SURAH_META;
+    renderSurahList(allSurahs);
   }
 
   function renderSurahList(list) {
@@ -521,7 +472,7 @@
         <div class="surah-num">${s.id}</div>
         <div class="surah-info">
           <div class="surah-name">${s.name}</div>
-          <div class="surah-meta">${s.meaning ? s.meaning + ' · ' : ''}${s.verses !== '—' ? s.verses + ' аятов' : ''}${s.type ? ' · ' + s.type : ''}</div>
+          <div class="surah-meta">${s.meaning} · ${s.verses} аятов</div>
         </div>
         <div class="surah-arabic-name">${s.arabic}</div>
       </div>
@@ -540,7 +491,9 @@
     renderSurahList(filtered);
   });
 
-  // ===== ЧТЕНИЕ СУРЫ =====
+  // ===== ЧТЕНИЕ СУРЫ (fawazahmed0/quran-api) =====
+  const API_BASE = 'https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1';
+
   async function openSurah(id) {
     showScreen('screen-reader');
     const nameEl = document.getElementById('readerName');
@@ -553,27 +506,29 @@
     nameEl.textContent = surah ? surah.name : 'Сура ' + id;
     meaningEl.textContent = surah ? surah.meaning : '';
     arabicEl.textContent = surah ? surah.arabic : '';
-    metaEl.textContent = surah ? (surah.verses + ' аятов' + (surah.type ? ' · ' + surah.type : '')) : '';
+    metaEl.textContent = surah ? (surah.verses + ' аятов') : '';
 
     content.innerHTML = '<div class="loader"><div class="spinner"></div>Загрузка аятов...</div>';
 
-    if (checkFileProtocol()) {
-      content.innerHTML = `
-        <div class="error-msg">
-          Открыто как файл (file://).<br>
-          Нужен локальный сервер или хостинг.
-        </div>`;
-      return;
-    }
-
     try {
-      const [arData, trData] = await Promise.all([
-        fetchWithFallback([`${API_BASE}/text/uthmani/chapters/${id}.json`]),
-        fetchWithFallback([`${API_BASE}/translations/ru-kuliev/chapters/${id}.json`])
+      // Новые URL: арабский текст (Усмани) и русский перевод Кулиева
+      const arUrl = `${API_BASE}/editions/ara-quranuthmanihaf/${id}.json`;
+      const ruUrl = `${API_BASE}/editions/rus-kuliev/${id}.json`;
+
+      const [arRes, ruRes] = await Promise.all([
+        fetch(arUrl),
+        fetch(ruUrl)
       ]);
 
-      const arVerses = arData.verses || [];
-      const trVerses = trData.verses || [];
+      if (!arRes.ok) throw new Error('Arabic HTTP ' + arRes.status);
+      if (!ruRes.ok) throw new Error('Russian HTTP ' + ruRes.status);
+
+      const arData = await arRes.json();
+      const ruData = await ruRes.json();
+
+      // Структура fawazahmed0: { chapter: [{ verse: 1, text: "..." }, ...] }
+      const arVerses = arData.chapter || [];
+      const ruVerses = ruData.chapter || [];
 
       if (!arVerses.length) {
         content.innerHTML = '<div class="error-msg">Не удалось загрузить аяты.</div>';
@@ -581,14 +536,14 @@
       }
 
       content.innerHTML = arVerses.map((v, i) => {
-        const num = v.id ?? (i + 1);
+        const num = v.verse || (i + 1);
         const arText = v.text || '';
-        const trText = trVerses[i]?.text || '';
+        const ruText = ruVerses[i]?.text || '';
         return `
           <div class="ayah-block">
             <div class="ayah-number">${id}:${num}</div>
             <div class="ayah-arabic">${arText}</div>
-            ${trText ? `<div class="ayah-translation">${trText}</div>` : ''}
+            ${ruText ? `<div class="ayah-translation">${ruText}</div>` : ''}
           </div>
         `;
       }).join('');
